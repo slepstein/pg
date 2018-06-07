@@ -1,6 +1,14 @@
 from .core import Mesh
 from .util import normal_from_points
-from itertools import izip_longest
+
+import sys
+
+if sys.version_info.major > 2:
+    from itertools import zip_longest
+else:
+    from itertools import izip_longest
+
+
 import os
 
 def parse_obj(path):

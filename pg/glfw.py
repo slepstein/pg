@@ -23,7 +23,7 @@ try:
     _getcwd = os.getcwdu
 except AttributeError:
     _getcwd = os.getcwd
-if sys.version_info.major > 2:
+if sys.version_info.major > 3:
     _to_char_p = lambda s: s.encode('utf-8')
 else:
     _to_char_p = lambda s: s
@@ -790,8 +790,10 @@ def create_window(width, height, title, monitor, share):
     Wrapper for:
         GLFWwindow* glfwCreateWindow(int width, int height, const char* title, GLFWmonitor* monitor, GLFWwindow* share);
     '''
-    return _glfw.glfwCreateWindow(width, height, _to_char_p(title),
-                                  monitor, share)
+    if sys.version_info.major > 2:
+        return _glfw.glfwCreateWindow(width, height, _to_char_p(title).encode(),monitor, share)
+    else:
+        return _glfw.glfwCreateWindow(width, height, _to_char_p(title),monitor, share)
 
 _glfw.glfwDestroyWindow.restype = None
 _glfw.glfwDestroyWindow.argtypes = [ctypes.POINTER(_GLFWwindow)]
