@@ -28,6 +28,8 @@ class WASD(object):
     @property
     def position(self):
         return (self.x, self.y, self.z)
+    def rotation(self):
+        return (self.ry, self.rx)
     def look_at(self, position, target):
         px, py, pz = position
         tx, ty, tz = target
@@ -72,7 +74,7 @@ class WASD(object):
         self.mx = mx
         self.my = my
     def get_strafe(self):
-        sx = sz = 0
+        sx = sy= sz = 0
         if glfw.get_key(self.window.handle, ord('W')):
             sz -= 1
         if glfw.get_key(self.window.handle, ord('S')):
@@ -81,7 +83,11 @@ class WASD(object):
             sx -= 1
         if glfw.get_key(self.window.handle, ord('D')):
             sx += 1
-        return (sx, sz)
+        if glfw.get_key(self.window.handle, ord('Z')):
+            sy -= 1
+        if glfw.get_key(self.window.handle, ord('Q')):
+            sy += 1
+        return (sx, sy, sz)
     def get_matrix(self, matrix=None, translate=True):
         matrix = matrix or Matrix()
         if translate:
@@ -95,8 +101,37 @@ class WASD(object):
         vy = sin(self.ry)
         vz = sin(self.rx - pi / 2) * m
         return (vx, vy, vz)
+    def get_following_matrix(self, distance, height, matrix=None, translate=True):
+        matrix = matrix or Matrix()
+        vx,vy,vz=self.get_sight_vector()
+        x=self.x-vx*distance
+        y=self.y+height
+        z=self.z-vz*distance
+        if translate:
+            matrix = matrix.translate((-x, -y, -z))
+            
+        matrix = matrix.rotate((cos(self.rx), 0, sin(self.rx)), self.ry)
+        matrix = matrix.rotate((0, 1, 0), -self.rx)
+        return matrix
+
+    def calculate_strafe_motion_vector(self,sx, sy, sz):
+        if sx == 0 and sz == 0:
+            return (0, 0, 0)
+        strafe = atan2(sz, sx)
+        m = cos(self.ry)
+        y = sin(self.ry)
+        if sx:
+            if not sz:
+                y = 0
+            m = 1
+        if sz > 0:
+            y = -y
+        vx = cos(self.rx + strafe) * m
+        vy = y
+        vz = sin(self.rx + strafe) * m
+        return normalize((vx, vy, vz))
     def get_motion_vector(self):
-        sx, sz = self.get_strafe()
+        sx, sy, sz = self.get_strafe()
         if sx == 0 and sz == 0:
             return (0, 0, 0)
         strafe = atan2(sz, sx)

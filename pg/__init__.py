@@ -70,6 +70,7 @@ from .poisson import (
 from .programs import (
     BaseProgram,
     DirectionalLightProgram,
+    DirectionalLightWithTextureAtlasProgram,
     SolidColorProgram,
     TextProgram,
     TextureProgram,

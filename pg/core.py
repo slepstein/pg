@@ -1,13 +1,27 @@
 from ctypes import *
 from OpenGL.GL import *
+
 from PIL import Image
 from math import copysign
 from .matrix import Matrix
 from . import glfw
 from . import util
-import cPickle as pickle
+
+import sys
+
+if sys.version_info.major > 2:
+    import pickle
+    xrange=range
+else:
+    import cPickle as pickle
+
 import os
-import Queue
+
+if sys.version_info.major > 2:
+    import queue
+else:
+    import Queue
+
 import threading
 import time
 
@@ -86,6 +100,11 @@ class Mesh(object):
         normals = self.normals + other.normals
         uvs = self.uvs + other.uvs
         return Mesh(positions, normals, uvs)
+    def copy(self):
+        positions = list(self.positions)
+        normals = list(self.normals )
+        uvs = list(self.uvs)
+        return Mesh(positions, normals, uvs)
     def __rmul__(self, other):
         if isinstance(other, Matrix):
             return self.multiply(other)
@@ -144,8 +163,9 @@ class VertexBuffer(object):
         self.vertex_capacity = 0
         self.extend(data)
     def delete(self):
+        #print ("vertex buffer delete")
         if self.handle is not None:
-            glDeleteBuffers(1, self.handle)
+            glDeleteBuffers(1, OpenGL.GL.GLuint(self.handle))
             self.handle = None
     def extend(self, data):
         if not data:
@@ -158,6 +178,9 @@ class VertexBuffer(object):
         offset = self.vertex_count * self.components
         size = len(data) * self.components
         flat = util.flatten(data)
+        
+        #print ("flat",flat)
+        
         if len(flat) != size:
             raise Exception
         self.vertex_count += len(data)
@@ -177,6 +200,9 @@ class VertexBuffer(object):
             sizeof(c_float) * size,
             util.pack_list('<f', flat))
         glBindBuffer(GL_ARRAY_BUFFER, 0)
+        
+        #print ("vertex count",self.vertex_count)
+        
     def allocate(self, size):
         glBindBuffer(GL_ARRAY_BUFFER, self.handle)
         glBufferData(
@@ -258,7 +284,7 @@ class IndexBuffer(object):
             self.set_data(data)
     def delete(self):
         if self.handle is not None:
-            glDeleteBuffers(1, self.handle)
+            glDeleteBuffers(1, OpenGL.GL.GLuint(self.handle))
             self.handle = None
     def set_data(self, data):
         self.size = len(data)
@@ -300,8 +326,10 @@ class Texture(object):
         if isinstance(im, basestring):
             im = Image.open(im)
         im = im.convert('RGBA').transpose(Image.FLIP_TOP_BOTTOM)
+        self.im=im
         self.size = width, height = im.size
         data = im.tobytes()
+
         self.handle = glGenTextures(1)
         self.bind()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter)
@@ -315,7 +343,7 @@ class Texture(object):
             glGenerateMipmap(GL_TEXTURE_2D)
     def delete(self):
         if self.handle is not None:
-            glDeleteTextures(1, self.handle)
+            glDeleteTextures(OpenGL.GL.GLuint(self.handle))
             self.handle = None
     def get_uniform_value(self):
         return self.unit
@@ -464,7 +492,7 @@ class Program(object):
                 byref(size), byref(data_type), name)
             location = glGetAttribLocation(self.handle, name.value)
             attribute = Attribute(
-                location, name.value, size.value, data_type.value)
+                location, name.value.decode('utf-8'), size.value, data_type.value)
             result.append(attribute)
         return result
     def get_uniforms(self):
@@ -472,6 +500,12 @@ class Program(object):
         count = glGetProgramiv(self.handle, GL_ACTIVE_UNIFORMS)
         for index in xrange(count):
             name, size, data_type = glGetActiveUniform(self.handle, index)
+            
+            #print("name",name)
+            
+            if sys.version_info.major > 2:
+                name=name.decode('utf-8')
+                
             if name.endswith('[0]'):
                 name = name[:-3]
             location = glGetUniformLocation(self.handle, name)
@@ -481,20 +515,30 @@ class Program(object):
 
 class Context(object):
     def __init__(self, program):
+        #print ("get attributes",program.get_attributes)
+    
         self._program = program
         self._attributes = dict((x.name, x) for x in program.get_attributes())
         self._uniforms = dict((x.name, x) for x in program.get_uniforms())
         self._attribute_values = {}
         self._uniform_values = {}
         self._program.set_defaults(self)
+        
+        #print ("self._attributes",self._attributes)
+        
     def delete(self):
         self._program.delete()
     def __setattr__(self, name, value):
+    
+        #print ("__setattr name,value",name,value)
+        
         if name.startswith('_'):
             super(Context, self).__setattr__(name, value)
         elif name in self._attributes:
+            #print ("name in self._attributes")
             self._attribute_values[name] = value
         elif name in self._uniforms:
+            #print ("name in self._uniforms")
             self._uniform_values[name] = value
         else:
             super(Context, self).__setattr__(name, value)
@@ -509,21 +553,25 @@ class Context(object):
             super(Context, self).__getattr__(name)
     def draw(self, mode=GL_TRIANGLES, index_buffer=None):
         self._program.use()
-        for name, value in self._uniform_values.iteritems():
+        
+        #print ("draw",self._uniform_values)
+        
+        for name, value in self._uniform_values.items():
             if value is not None:
                 self._uniforms[name].bind(value)
-        for name, value in self._attribute_values.iteritems():
+        for name, value in self._attribute_values.items():
             if value is not None:
                 self._attributes[name].bind(value)
         if index_buffer is None:
+            #print ("attribute_values",self._attribute_values.values())
             vertex_count = min(x.vertex_count for x in
-                self._attribute_values.itervalues() if x is not None)
+                self._attribute_values.values() if x is not None)
             glDrawArrays(mode, 0, vertex_count)
         else:
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer.handle)
             glDrawElements(mode, index_buffer.size, GL_UNSIGNED_INT, c_void_p())
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
-        for name, value in self._attribute_values.iteritems():
+        for name, value in self._attribute_values.items():
             if value is not None:
                 self._attributes[name].unbind()
 
@@ -642,7 +690,7 @@ class Window(object):
     def configure(self):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_CULL_FACE)
-        # glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        #glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
     def close(self):
         glfw.set_window_should_close(self.handle, 1)
     def set_exclusive(self, exclusive=True):
@@ -678,6 +726,18 @@ class Window(object):
     def redraw(self):
         self.call('draw')
         glfw.swap_buffers(self.handle)
+    
+    def xxx_copy_image(self):
+        width, height = self.size
+        data = (c_ubyte * (width * height * 3))()
+        glReadBuffer(GL_BACK)
+        glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, data)
+        im = Image.frombytes('RGB', (width, height), data)
+        im = im.transpose(Image.FLIP_TOP_BOTTOM)
+        
+        return im
+    
+
     def save_image(self, path):
         width, height = self.size
         data = (c_ubyte * (width * height * 3))()
@@ -780,7 +840,13 @@ class App(object):
         App.instance = self
         self.windows = []
         self.current_window = None
-        self.queue = Queue.Queue()
+        
+        if sys.version_info.major > 2:
+            self.queue = queue.Queue()
+        else:        
+            self.queue = Queue.Queue()
+        
+        
         self.ticker = Ticker()
     def add_window(self, window):
         self.windows.append(window)

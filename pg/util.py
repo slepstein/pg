@@ -2,6 +2,8 @@ from collections import defaultdict
 from ctypes import create_string_buffer
 import struct
 
+import sys
+
 def hex_color(value):
     '''Accepts a hexadecimal color `value` in the format ``0xrrggbb`` and
     returns an (r, g, b) tuple where 0.0 <= r, g, b <= 1.0.
@@ -185,6 +187,14 @@ def ray_triangle_intersection(v1, v2, v3, o, d):
         return t
     return None
 
+def test_func(fmt,x):
+    print ("test_func",x)
+    r=struct.Struct(fmt).pack(x)
+    print ("r",r)
+    
+    r=r.decode('utf-8')
+    return r
+    
 def pack_list(fmt, data):
     '''Convert a Python list into a ctypes buffer.
 
@@ -192,4 +202,8 @@ def pack_list(fmt, data):
     array, e.g. (c_float * len(data))(*data)
     '''
     func = struct.Struct(fmt).pack
-    return create_string_buffer(''.join([func(x) for x in data]))
+
+    if sys.version_info.major > 2:
+        return create_string_buffer(b''.join([func(x) for x in data]))
+    else:
+        return create_string_buffer(''.join([func(x) for x in data]))

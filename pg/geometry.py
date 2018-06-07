@@ -5,6 +5,11 @@ from .core import Mesh
 from .matrix import Matrix
 from .util import distance, normalize
 
+import sys
+
+if sys.version_info.major > 2:
+    xrange=range
+
 class Sphere(Mesh):
     def __init__(self, detail, radius=0.5, center=(0, 0, 0)):
         super(Sphere, self).__init__()
@@ -24,6 +29,10 @@ class Sphere(Mesh):
         for a, b, c in indices:
             position = (positions[a], positions[b], positions[c])
             self._setup(self.detail, position)
+            
+        #print ("normals",self.normals)
+        #print ("positions",self.positions)
+        
     def _setup(self, detail, position):
         a, b, c = position
         r = self.radius
@@ -69,6 +78,9 @@ class Cone(Mesh):
         a = atan2(dz, dx) - pi / 2
         b = atan2(dy, hypot(dx, dz)) - pi / 2
         matrix = Matrix()
+        
+        #print ("matrix",matrix)
+        
         matrix = matrix.rotate((cos(a), 0, sin(a)), b)
         normal_matrix = matrix
         matrix = matrix.translate((cx, cy, cz))
@@ -210,6 +222,8 @@ class Plane(Mesh):
     def __init__(self, point, normal, size=0.5, both=True):
         super(Plane, self).__init__()
         nx, ny, nz = normal
+        
+        #print ("point, nx,ny,nz, size",point,nx,ny,nz,size)
         self.setup(point, (nx, ny, nz), size)
         if both:
             self.setup(point, (-nx, -ny, -nz), size)
@@ -218,6 +232,10 @@ class Plane(Mesh):
             w, h = size
         except Exception:
             w = h = size
+            
+        normal = normalize(normal)
+        nx, ny, nz = normal
+
         positions = [
             (-w, 0, -h), (w, 0, -h), (-w, 0, h),
             (-w, 0, h), (w, 0, -h), (w, 0, h)
@@ -226,16 +244,21 @@ class Plane(Mesh):
             (0, 0), (1, 0), (0, 1),
             (0, 1), (1, 0), (1, 1)
         ]
-        normal = normalize(normal)
-        nx, ny, nz = normal
+         
         a = atan2(nz, nx) + pi
         b = atan2(ny, hypot(nx, nz)) + pi / 2
         rx, rz = cos(a + pi / 2), sin(a + pi / 2)
         matrix = Matrix()
+        #print ("matrix",matrix)
+        
         matrix = matrix.rotate((0, 1, 0), a)
         matrix = matrix.rotate((rx, 0, rz), b)
         matrix = matrix.translate(point)
+                
         for position in positions:
+            #print ("position",position)
+            #print ("matrix",matrix)
+
             self.positions.append(matrix * position)
         self.normals.extend([normal] * 6)
         for uv in uvs:
